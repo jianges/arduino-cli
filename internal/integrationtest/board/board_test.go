@@ -40,3 +40,30 @@ func TestBoardList(t *testing.T) {
 	requirejson.Query(t, stdout, ".[] | .port | .protocol!=\"\"", "true")
 	requirejson.Query(t, stdout, ".[] | .port | .protocol_label!=\"\"", "true")
 }
+
+func TestBoardListWithInvalidDiscovery(t *testing.T) {
+	env, cli := integrationtest.CreateArduinoCLIWithEnvironment(t)
+	defer env.CleanUp()
+
+	_, _, err := cli.Run("core", "update-index")
+	require.NoError(t, err)
+	_, _, err = cli.Run("board", "list")
+	require.NoError(t, err)
+
+	// check that the CLI does not crash if an invalid discovery is installed
+	// (for example if the installation fails midway).
+	// https://github.com/arduino/arduino-cli/issues/1669
+	toolDir := cli.DataDir().Join("packages", "builtin", "tools", "serial-discovery")
+	dirToRemove, err := toolDir.ReadDir()
+	require.NoError(t, err)
+	content, err := dirToRemove[0].ReadDir()
+	require.NoError(t, err)
+	for _, d := range content {
+		err = d.Remove()
+		require.NoError(t, err)
+	}
+
+	_, stderr, err := cli.Run("board", "list")
+	require.NoError(t, err)
+	require.Contains(t, string(stderr), "builtin:serial-discovery")
+}
